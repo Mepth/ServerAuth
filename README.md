@@ -13,10 +13,21 @@ self.send_packet(0x18, Buffer.pack_string('BungeeCord') + u'Hello')  #http://wik
 
 self.send_chat('Hello world!')
 
+Как отправить Title? 
+
+self.send_title('Line 1', 'Line 2')
+
+Как создать задачу, которая будет выполнятся каждую секунду?
+
+self.taks.add_loop(Секундны, self.метод)
+
+Как создать задачу, которая выполнится через несколько секунд?
+
+self.tasks.add_delay(Секунды, self.метод)
+
 # Остались вопросы? 
 
 Пишите их во вкладку Issues,помогу почти всем :)
-
 
 # Wikis
 
