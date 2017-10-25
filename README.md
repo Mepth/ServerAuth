@@ -1,13 +1,21 @@
 # ServerAuth
 Сервер на Python на который можно зайти. Пустота и сообщения.
 
-# Как отправить пакет?
+# Вопросы
+
+Как отправить пакет?
 
 self.send_packet(IDпаекета, Дата пакета) ->
 
 self.send_packet(0x18, Buffer.pack_string('BungeeCord') + u'Hello')  #http://wiki.vg/Protocol#Plugin_Message
 
+Как отправить сообщение?
 
+self.send_chat('Hello world!')
+
+# Остались вопросы? 
+
+Пишите их во вкладку Issues,помогу почти всем :)
 
 
 # Wikis
