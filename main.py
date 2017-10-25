@@ -75,6 +75,7 @@ class AuthProtocol(protocol.Protocol):
     protocol_version = 0
     login_step = 0
     def __init__(self, factory, addr):
+        self.x, self.y, self.z, self.o = 0, 255, 0, True
         self.joined = False
         self.need_to_send_keep_alive = False
         self.factory = factory
@@ -102,6 +103,12 @@ class AuthProtocol(protocol.Protocol):
         try:
             ident = buff.unpack_varint()
             if self.factory.debug: print(str(ident))
+            if self.protocol_version == 47:
+                if ident == 4: self.x, self.y, self.z, self.o = buff.unpack('ddd?')
+            elif self.protocol_version == 107 or self.protocol_version == 108 or self.protocol_version == 109 or self.protocol_version == 110 or self.protocol_version == 210 or self.protocol_version == 315 or self.protocol_version == 316:
+                if ident == 0x0C: self.x, self.y, self.z, self.o = buff.unpack('ddd?')
+            elif self.protocol_version == 335 or self.protocol_version == 338 or self.protocol_version == 340:
+                if ident == 0x0E: self.x, self.y, self.z, self.o = buff.unpack('ddd?')
             if self.protocol_mode == 0:
                 if ident == 0:
                     self.protocol_version = buff.unpack_varint()
@@ -119,10 +126,13 @@ class AuthProtocol(protocol.Protocol):
                 else: raise ProtocolError.mode_mismatch(ident, self.protocol_mode)
             elif self.protocol_mode == 2:
                 self.username = buff.unpack_string()
+                print(str(self.y))
+                '''
                 if self.need_to_send_keep_alive:
                     if self.protocol_version == 47: self.send_packet(0x0, self.buff.pack_varint(0))
                     elif self.protocol_version == 338 or self.protocol_version == 340: self.send_packet(0x1F, self.buff.pack('Q', 0))
                     else: self.send_packet(0x1F, self.buff.pack_varint(0))
+                '''
                 if not self.joined:
                     self.joined = True
                     self.send_packet(0x2, buff.pack_string('19e34a23-53d5-4bc2-a649-c9575ef08bb6') + buff.pack_string(self.username))
@@ -161,14 +171,21 @@ class AuthProtocol(protocol.Protocol):
         self.send_packet(0, Buffer.pack_string(json.dumps({"text": message.replace('&', u'\u00A7')})))
         self.close()
     def send_title(self, message, sub):
-        self.send_packet(0x45, Buffer.pack_varint(0) + Buffer.pack_chat(message))
-        self.send_packet(0x45, Buffer.pack_varint(1) + Buffer.pack_chat(sub))
+        if self.protocol_version <= 334:
+            self.send_packet(0x45, Buffer.pack_varint(0) + Buffer.pack_chat(message))
+            self.send_packet(0x45, Buffer.pack_varint(1) + Buffer.pack_chat(sub))
+        elif self.protocol_version == 335:
+            self.send_packet(0x47, Buffer.pack_varint(0) + Buffer.pack_chat(message))
+            self.send_packet(0x47, Buffer.pack_varint(1) + Buffer.pack_chat(sub))
+        elif self.protocol_version == 338 or self.protocol_version == 340:
+            self.send_packet(0x48, Buffer.pack_varint(0) + Buffer.pack_chat(message))
+            self.send_packet(0x48, Buffer.pack_varint(1) + Buffer.pack_chat(sub))
     def send_chat(self, msg):
         if self.protocol_version == 47:
             self.send_packet(2, Buffer.pack_chat(msg) + Buffer.pack('b', 0))
         elif self.protocol_version == 316 or self.protocol_version == 315 or self.protocol_version == 110 or \
                         self.protocol_version == 210 or self.protocol_version == 109 or self.protocol_version == 108 or \
-                        self.protocol_version == 107 or self.protocol_version == 335:
+                        self.protocol_version == 107 or self.protocol_version == 335 or self.protocol_version == 338 or self.protocol_version == 340:
             self.send_packet(0x0F, Buffer.pack_chat(msg) + Buffer.pack('b', 0))
 class AuthServer(protocol.Factory):
     def __init__(self):
