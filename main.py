@@ -138,13 +138,13 @@ class AuthProtocol(protocol.Protocol):
                     sys.stdout.write('%s joined on server with parms: %s|[%s]%s\n' % (self.username, self.protocol_version, self.client_addr, self.protocol_mode))
                     if self.protocol_version == 47:
                         self.send_packet(0x1, Buffer.pack('iBbBB', 0, 0, 0, 0, 0) + Buffer.pack_string('flat') + Buffer.pack('?', False))
-                        self.send_packet(0x8, Buffer.pack('dddffb', float(0), float(255), float(0), float(-90), float(0), 0b00000))
+                        self.send_packet(0x8, Buffer.pack('dddffb', float(0), float(400), float(0), float(-90), float(0), 0b00000))
                     elif self.protocol_version == 316 or self.protocol_version == 315 or self.protocol_version == 110 or self.protocol_version == 210 or self.protocol_version == 109 or self.protocol_version == 108 or self.protocol_version == 107 or self.protocol_version == 335:
                         self.send_packet(0x23, Buffer.pack('iBiBB', 0, 0, 0, 0, 0) + Buffer.pack_string('flat') + Buffer.pack('?', False))
-                        self.send_packet(0x2E, Buffer.pack('dddff?', float(0), float(255), float(0), float(-90), float(0), True) + Buffer.pack_varint(0))
+                        self.send_packet(0x2E, Buffer.pack('dddff?', float(0), float(400), float(0), float(-90), float(0), True) + Buffer.pack_varint(0))
                     elif self.protocol_version == 338 or self.protocol_version == 340:
                         self.send_packet(0x23, Buffer.pack('iBiBB', 0, 0, 0, 0, 0) + Buffer.pack_string('flat') + Buffer.pack('?', False))
-                        self.send_packet(0x2F, Buffer.pack('dddff?', float(0), float(255), float(0), float(-90), float(0), True) + Buffer.pack_varint(0))
+                        self.send_packet(0x2F, Buffer.pack('dddff?', float(0), float(400), float(0), float(-90), float(0), True) + Buffer.pack_varint(0))
                     else: self.kick('Unsupported version')
                     self.send_chunk()
                     self.send_chat('You joined on authserver')
@@ -155,7 +155,7 @@ class AuthProtocol(protocol.Protocol):
         except: pass
     def guard(self):
         self.send_health(self.expBar)
-
+        self.send_exp(self.bar)
         self.bar += 0.01695
         if self.bar >= 1: self.bar = 0.1
         self.expBar += 1
@@ -209,7 +209,7 @@ class AuthProtocol(protocol.Protocol):
         if self.protocol_version == 338 or self.protocol_version == 340: self.send_packet(0x40, Buffer.pack('f', var) + Buffer.pack_varint(0) + Buffer.pack_varint(0))
 class AuthServer(protocol.Factory):
     def __init__(self):
-        self.s_port = 48000
+        self.s_port = 25565
         self.s_host = '0.0.0.0'
         self.debug = True
         self.motd = "&dAuthServer by vk.com/ru.yooxa\n&71.8-1.12.2"
