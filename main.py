@@ -81,8 +81,7 @@ class AuthProtocol(protocol.Protocol):
     protocol_version = 0
     login_step = 0
     def __init__(self, factory, addr):
-        self.x, self.y, self.z, self.o, self.expBar, self.bar = 1, 255, 0, True, 2, 0.0
-        self.guards = 0
+        self.x, self.y, self.z, self.o, self.expBar, self.bar, self.pps, self.guards, self.prog = 1, 255, 0, True, 2, 0.0, 0, 0, False
         self.joined = False
         self.factory = factory
         self.client_addr = addr.host
@@ -109,6 +108,7 @@ class AuthProtocol(protocol.Protocol):
         try:
             ident = buff.unpack_varint()
             if self.factory.debug: print(str(ident))
+            self.pps += 1
             if self.protocol_version == 47:
                 if ident == 4: self.x, self.y, self.z, self.o = buff.unpack('ddd?')
             elif self.protocol_version == 107 or self.protocol_version == 108 or self.protocol_version == 109 or self.protocol_version == 110 or self.protocol_version == 210 or self.protocol_version == 315 or self.protocol_version == 316:
@@ -136,6 +136,7 @@ class AuthProtocol(protocol.Protocol):
                     self.joined = True
                     self.send_packet(0x2, buff.pack_string('19e34a23-53d5-4bc2-a649-c9575ef08bb6') + buff.pack_string(self.username))
                     sys.stdout.write('%s joined on server with parms: %s|[%s]%s\n' % (self.username, self.protocol_version, self.client_addr, self.protocol_mode))
+                    self.factory.online += 1
                     if self.protocol_version == 47:
                         self.send_packet(0x1, Buffer.pack('iBbBB', 0, 0, 0, 0, 0) + Buffer.pack_string('flat') + Buffer.pack('?', False))
                         self.send_packet(0x8, Buffer.pack('dddffb', float(0), float(400), float(0), float(-90), float(0), 0b00000))
@@ -147,8 +148,8 @@ class AuthProtocol(protocol.Protocol):
                         self.send_packet(0x2F, Buffer.pack('dddff?', float(0), float(400), float(0), float(-90), float(0), True) + Buffer.pack_varint(0))
                     else: self.kick('Unsupported version')
                     self.send_chunk()
-                    self.send_chat('You joined on authserver')
-                    self.send_title('§cНу ты это там залогинся /login [пароль]', '§eИли зарегайся /reg [пароль] [пароль]')
+                    self.send_chat('Ожидайте завершения проверки')
+                    self.send_title('Падажже', 'Уобанна')
                     self.tasks.add_loop(0.05, self.guard)
                     self.tasks.add_delay(15, self.time_kick)
             else: raise ProtocolError.mode_mismatch(ident, self.protocol_mode)
@@ -156,10 +157,14 @@ class AuthProtocol(protocol.Protocol):
     def guard(self):
         self.send_health(self.expBar)
         self.send_exp(self.bar)
+        print(str(self.pps))
         self.bar += 0.01695
-        if self.bar >= 1: self.bar = 0.1
         self.expBar += 1
+        if self.bar >= 1: self.bar = 0.1
         if self.expBar == 21: self.expBar = 1
+        if self.pps >= 50 and self.y <= 390 and not self.prog:
+            self.prog = True
+            self.send_chat('Success')
     def send_packet(self, ident, data):
         data = Buffer.pack_varint(ident) + data
         data = Buffer.pack_varint(len(data)) + data
@@ -172,6 +177,7 @@ class AuthProtocol(protocol.Protocol):
         self.transport.loseConnection()
     def connectionLost(self, reason=None):
         self.tasks.stop_all()
+        self.factory.online = self.factory.online - 1
         sys.stdout.write('leaved from server with parms: %s|[%s]%s\n' % (self.protocol_version, self.client_addr, self.protocol_mode))
     def kick(self, message):
         self.send_packet(0, Buffer.pack_string(json.dumps({"text": message.replace('&', u'\u00A7')})))
@@ -211,10 +217,11 @@ class AuthServer(protocol.Factory):
     def __init__(self):
         self.s_port = 25565
         self.s_host = '0.0.0.0'
-        self.debug = True
+        self.online = 0
+        self.debug = False
         self.motd = "&dAuthServer by vk.com/ru.yooxa\n&71.8-1.12.2"
         self.player_timeout = 30
-        self.status = {"description": self.motd.replace('&', u'\u00A7'),"players": {"max": 0, "online": 0},"version": {"name": "", "protocol": 0}}
+        self.status = {"description": self.motd.replace('&', u'\u00A7'),"players": {"max": 0, "online": self.online},"version": {"name": "", "protocol": 0}}
     def run(self):
         reactor.listenTCP(self.s_port, self, interface=self.s_host)
         print("server binded on " + self.s_host + ":" + str(self.s_port))
