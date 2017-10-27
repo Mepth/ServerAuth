@@ -215,7 +215,7 @@ class AuthProtocol(protocol.Protocol):
         if self.protocol_version == 338 or self.protocol_version == 340: self.send_packet(0x40, Buffer.pack('f', var) + Buffer.pack_varint(0) + Buffer.pack_varint(0))
 class AuthServer(protocol.Factory):
     def __init__(self):
-        self.s_port = 25565
+        self.s_port = 48000
         self.s_host = '0.0.0.0'
         self.online = 0
         self.debug = False
