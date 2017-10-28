@@ -79,7 +79,7 @@ class AuthProtocol(protocol.Protocol):
     protocol_version = 0
     login_step = 0
     def __init__(self, factory, addr):
-        self.x, self.y, self.z, self.o, self.expBar, self.bar, self.pps, self.guards, self.prog = 1, 400, 0, True, 2, 0.0, 0, 0, False
+        self.x, self.y, self.z, self.o, self.expBar, self.bar, self.pps, self.guards, self.prog, self.hic, self.nhlc, self.gu = 1, 400, 0, True, 2, 0.0, 0, 0, False, 0, 0, 0
         self.joined = False
         self.factory = factory
         self.client_addr = addr.host
@@ -111,6 +111,7 @@ class AuthProtocol(protocol.Protocol):
                 try: name = packets.packet_names[key]
                 except KeyError: raise ProtocolError("No name known for packet: %s" % (key,))
                 if name == 'player_position': self.x, self.y, self.z, self.o = buff.unpack('ddd?')
+                if name == 'held_item_change': self.nhlc = buff.unpack('h'); self.gu += 1
             self.pps += 1
             if self.protocol_mode == 0:
                 if ident == 0:
@@ -145,7 +146,7 @@ class AuthProtocol(protocol.Protocol):
                         self.send_packet('player_position_and_look', self.buff.pack('dddff?', float(0), float(400), float(0), float(-90), float(0), True) + self.buff.pack_varint(0))
                     self.send_chunk()
                     self.send_chat('Ожидайте завершения проверки')
-                    self.send_title('Падажже', 'Уобанна')
+                    self.send_title('Wait', 'вы проверяйтесь')
                     self.tasks.add_loop(0.05, self.guard)
                     self.tasks.add_delay(15, self.time_kick)
             else: raise ProtocolError.mode_mismatch(ident, self.protocol_mode)
@@ -153,13 +154,17 @@ class AuthProtocol(protocol.Protocol):
     def guard(self):
         self.send_packet('update_health', Buffer.pack('f', self.expBar) + Buffer.pack_varint(self.expBar) + Buffer.pack('f', 0.0))
         self.send_packet('set_experience', Buffer.pack('f', self.bar) + Buffer.pack_varint(0) + Buffer.pack_varint(0))
+        self.send_packet('held_item_change', Buffer.pack('b', self.hic))
         self.bar += 0.01695
         self.expBar += 1
+        self.hic += 1
+        if self.hic == 9: self.hic = 0
         if self.bar >= 1: self.bar = 0.1
         if self.expBar == 21: self.expBar = 1
-        if self.pps >= 50 and self.y <= 390 and not self.prog:
+        if self.pps >= 50 and self.y <= 390 and not self.prog and self.gu >= 40:
             self.prog = True
             self.send_chat('Success')
+            sys.stdout.write('%s passed the test and was sent to the server: %s|[%s]%s\n' % (self.username, self.protocol_version, self.client_addr, self.protocol_mode))
     def send_packet(self, name, data):
         key = ( self.protocol_version, self.get_mode(self.protocol_mode), "downstream", name)
         try: ident = packets.packet_idents[key]
