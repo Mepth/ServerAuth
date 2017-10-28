@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 from twisted.internet import protocol, reactor
 from twisted.internet.task import LoopingCall
-import struct, json, zlib, sys
+import struct, json, zlib, sys, packets
 class BufferUnderrun(Exception): pass
 class Tasks(object):
     def __init__(self):
@@ -32,9 +32,7 @@ class ProtocolError(Exception):
     @classmethod
     def step_mismatch(cls, ident, step): return cls("Unexpected packet; ID: {0}; Step: {1}".format(ident, step))
 class Buffer(object):
-    def __init__(self):
-        self.buff1 = ""
-        self.buff2 = ""
+    def __init__(self): self.buff1, self.buff2 = "", ""
     def length(self): return len(self.buff1)
     def add(self, d): self.buff1 += d
     def save(self): self.buff2 = self.buff1
@@ -81,7 +79,7 @@ class AuthProtocol(protocol.Protocol):
     protocol_version = 0
     login_step = 0
     def __init__(self, factory, addr):
-        self.x, self.y, self.z, self.o, self.expBar, self.bar, self.pps, self.guards, self.prog = 1, 255, 0, True, 2, 0.0, 0, 0, False
+        self.x, self.y, self.z, self.o, self.expBar, self.bar, self.pps, self.guards, self.prog = 1, 400, 0, True, 2, 0.0, 0, 0, False
         self.joined = False
         self.factory = factory
         self.client_addr = addr.host
@@ -108,13 +106,12 @@ class AuthProtocol(protocol.Protocol):
         try:
             ident = buff.unpack_varint()
             if self.factory.debug: print(str(ident))
+            if self.protocol_mode == 3:
+                key = (self.protocol_version, self.get_mode(self.protocol_mode), "upstream", ident)
+                try: name = packets.packet_names[key]
+                except KeyError: raise ProtocolError("No name known for packet: %s" % (key,))
+                if name == 'player_position': self.x, self.y, self.z, self.o = buff.unpack('ddd?')
             self.pps += 1
-            if self.protocol_version == 47:
-                if ident == 4: self.x, self.y, self.z, self.o = buff.unpack('ddd?')
-            elif self.protocol_version == 107 or self.protocol_version == 108 or self.protocol_version == 109 or self.protocol_version == 110 or self.protocol_version == 210 or self.protocol_version == 315 or self.protocol_version == 316:
-                if ident == 0x0C: self.x, self.y, self.z, self.o = buff.unpack('ddd?')
-            elif self.protocol_version == 335 or self.protocol_version == 338 or self.protocol_version == 340:
-                if ident == 0x0E: self.x, self.y, self.z, self.o = buff.unpack('ddd?')
             if self.protocol_mode == 0:
                 if ident == 0:
                     self.protocol_version = buff.unpack_varint()
@@ -123,10 +120,10 @@ class AuthProtocol(protocol.Protocol):
                     self.protocol_mode = buff.unpack_varint()
                 else: raise ProtocolError.mode_mismatch(ident, self.protocol_mode)
             elif self.protocol_mode == 1:
-                if ident == 0: self.send_packet(0, Buffer.pack_string(json.dumps(self.factory.get_status(self.protocol_version))))
+                if ident == 0: self.send_packet("status_response", Buffer.pack_string(json.dumps(self.factory.get_status(self.protocol_version))))
                 elif ident == 1:
                     time = buff.unpack("Q")
-                    self.send_packet(1, Buffer.pack("Q", time))
+                    self.send_packet('status_pong', Buffer.pack("Q", time))
                     sys.stdout.write(self.client_addr + ' pinged\n')
                     self.close()
                 else: raise ProtocolError.mode_mismatch(ident, self.protocol_mode)
@@ -134,19 +131,18 @@ class AuthProtocol(protocol.Protocol):
                 self.username = buff.unpack_string()
                 if not self.joined:
                     self.joined = True
-                    self.send_packet(0x2, buff.pack_string('19e34a23-53d5-4bc2-a649-c9575ef08bb6') + buff.pack_string(self.username))
+                    self.send_packet('login_success', buff.pack_string('19e34a23-53d5-4bc2-a649-c9575ef08bb6') + buff.pack_string(self.username))
+                    self.protocol_mode = 3
                     sys.stdout.write('%s joined on server with parms: %s|[%s]%s\n' % (self.username, self.protocol_version, self.client_addr, self.protocol_mode))
-                    self.factory.online += 1
                     if self.protocol_version == 47:
-                        self.send_packet(0x1, Buffer.pack('iBbBB', 0, 0, 0, 0, 0) + Buffer.pack_string('flat') + Buffer.pack('?', False))
-                        self.send_packet(0x8, Buffer.pack('dddffb', float(0), float(400), float(0), float(-90), float(0), 0b00000))
-                    elif self.protocol_version == 316 or self.protocol_version == 315 or self.protocol_version == 110 or self.protocol_version == 210 or self.protocol_version == 109 or self.protocol_version == 108 or self.protocol_version == 107 or self.protocol_version == 335:
-                        self.send_packet(0x23, Buffer.pack('iBiBB', 0, 0, 0, 0, 0) + Buffer.pack_string('flat') + Buffer.pack('?', False))
-                        self.send_packet(0x2E, Buffer.pack('dddff?', float(0), float(400), float(0), float(-90), float(0), True) + Buffer.pack_varint(0))
-                    elif self.protocol_version == 338 or self.protocol_version == 340:
-                        self.send_packet(0x23, Buffer.pack('iBiBB', 0, 0, 0, 0, 0) + Buffer.pack_string('flat') + Buffer.pack('?', False))
-                        self.send_packet(0x2F, Buffer.pack('dddff?', float(0), float(400), float(0), float(-90), float(0), True) + Buffer.pack_varint(0))
-                    else: self.kick('Unsupported version')
+                        self.send_packet('join_game', buff.pack('iBbBB', 0, 0, 0, 0, 0) + buff.pack_string('flat') + buff.pack('?', False))
+                        self.send_packet('player_position_and_look', Buffer.pack('dddffb', float(0), float(400), float(0), float(-90), float(0), 0b00000))
+                    elif self.protocol_version == 107:
+                        self.send_packet('join_game', buff.pack('iBbBB', 0, 0, 0, 0, 0) + buff.pack_string('flat') + buff.pack('?', False))
+                        self.send_packet('player_position_and_look', self.buff.pack('dddffb', float(0), float(400), float(0), float(-90), float(0), True) + self.buff.pack_varint(0))
+                    else:
+                        self.send_packet('join_game', self.buff.pack('iBiBB', 0, 0, 0, 0, 0) + self.buff.pack_string('flat') + self.buff.pack('?', False))
+                        self.send_packet('player_position_and_look', self.buff.pack('dddff?', float(0), float(400), float(0), float(-90), float(0), True) + self.buff.pack_varint(0))
                     self.send_chunk()
                     self.send_chat('Ожидайте завершения проверки')
                     self.send_title('Падажже', 'Уобанна')
@@ -155,9 +151,8 @@ class AuthProtocol(protocol.Protocol):
             else: raise ProtocolError.mode_mismatch(ident, self.protocol_mode)
         except: pass
     def guard(self):
-        self.send_health(self.expBar)
-        self.send_exp(self.bar)
-        print(str(self.pps))
+        self.send_packet('update_health', Buffer.pack('f', self.expBar) + Buffer.pack_varint(self.expBar) + Buffer.pack('f', 0.0))
+        self.send_packet('set_experience', Buffer.pack('f', self.bar) + Buffer.pack_varint(0) + Buffer.pack_varint(0))
         self.bar += 0.01695
         self.expBar += 1
         if self.bar >= 1: self.bar = 0.1
@@ -165,7 +160,10 @@ class AuthProtocol(protocol.Protocol):
         if self.pps >= 50 and self.y <= 390 and not self.prog:
             self.prog = True
             self.send_chat('Success')
-    def send_packet(self, ident, data):
+    def send_packet(self, name, data):
+        key = ( self.protocol_version, self.get_mode(self.protocol_mode), "downstream", name)
+        try: ident = packets.packet_idents[key]
+        except KeyError: raise ProtocolError("No ID known for packet: %s" % (key,))
         data = Buffer.pack_varint(ident) + data
         data = Buffer.pack_varint(len(data)) + data
         if len(data) >= 256: data = Buffer.pack_varint(len(data)) + zlib.compress(data)
@@ -180,39 +178,27 @@ class AuthProtocol(protocol.Protocol):
         self.factory.online = self.factory.online - 1
         sys.stdout.write('leaved from server with parms: %s|[%s]%s\n' % (self.protocol_version, self.client_addr, self.protocol_mode))
     def kick(self, message):
-        self.send_packet(0, Buffer.pack_string(json.dumps({"text": message.replace('&', u'\u00A7')})))
+        if self.get_mode(self.protocol_mode) == 'login': self.send_packet('login_disconnect', Buffer.pack_string(json.dumps({"text": message.replace('&', u'\u00A7')})))
+        else: self.send_packet('disconnect', Buffer.pack_string(json.dumps({"text": message.replace('&', u'\u00A7')})))
         self.close()
     def time_kick(self):
-        msg = 'CheckTimeOut'
-        if self.protocol_version == 47: self.send_packet(0x40, Buffer.pack_chat(msg))
-        else: self.send_packet(0x1A, Buffer.pack_chat(msg))
+        self.kick('CheckTimeOut')
     def send_title(self, message, sub):
-        if self.protocol_version <= 334:
-            self.send_packet(0x45, Buffer.pack_varint(0) + Buffer.pack_chat(message))
-            self.send_packet(0x45, Buffer.pack_varint(1) + Buffer.pack_chat(sub))
-        elif self.protocol_version == 335:
-            self.send_packet(0x47, Buffer.pack_varint(0) + Buffer.pack_chat(message))
-            self.send_packet(0x47, Buffer.pack_varint(1) + Buffer.pack_chat(sub))
-        elif self.protocol_version == 338 or self.protocol_version == 340:
-            self.send_packet(0x48, Buffer.pack_varint(0) + Buffer.pack_chat(message))
-            self.send_packet(0x48, Buffer.pack_varint(1) + Buffer.pack_chat(sub))
+        self.send_packet('title', Buffer.pack_varint(0) + Buffer.pack_chat(message))
+        self.send_packet('title', Buffer.pack_varint(1) + Buffer.pack_chat(sub))
     def send_chunk(self):
-        if self.protocol_version == 47: self.send_packet(0x21, Buffer.pack('ii?H', 0, 0, True, 0) + Buffer.pack_varint(0))
-        elif self.protocol_version == 107 or self.protocol_version == 109 or self.protocol_version == 108 or self.protocol_version == 107: self.send_packet(0x20, Buffer.pack('ii?', 0, 0, True) + Buffer.pack_varint(0) + Buffer.pack_varint(0))
-        else: self.send_packet(0x20, Buffer.pack('ii?H', 0, 0, True, 0) + Buffer.pack_varint(0))
+        if self.protocol_version == 47: self.send_packet('chunk_data', Buffer.pack('ii?H', 0, 0, True, 0) + Buffer.pack_varint(0))
+        elif self.protocol_version == 109 or self.protocol_version == 108 or self.protocol_version == 107: self.send_packet('chunk_data', Buffer.pack('ii?', 0, 0, True) + Buffer.pack_varint(0) + Buffer.pack_varint(0))
+        else: self.send_packet('chunk_data', Buffer.pack('ii?H', 0, 0, True, 0) + Buffer.pack_varint(0))
     def send_chat(self, msg):
-        if self.protocol_version == 47: self.send_packet(2, Buffer.pack_chat(msg) + Buffer.pack('b', 0))
-        elif self.protocol_version == 316 or self.protocol_version == 315 or self.protocol_version == 110 or self.protocol_version == 210 or self.protocol_version == 109 or self.protocol_version == 108 or self.protocol_version == 107 or self.protocol_version == 335 or self.protocol_version == 338 or self.protocol_version == 340: self.send_packet(0x0F, Buffer.pack_chat(msg) + Buffer.pack('b', 0))
-    def send_health(self, var):
-        if self.protocol_version == 47: self.send_packet(6, Buffer.pack('f', var) + Buffer.pack_varint(var) + Buffer.pack('f', 0.0))
-        if self.protocol_version == 107 or self.protocol_version == 108 or self.protocol_version == 109 or self.protocol_version == 110 or self.protocol_version == 210 or self.protocol_version == 315 or self.protocol_version == 316: self.send_packet(0x3E, Buffer.pack('f', var) + Buffer.pack_varint(var) + Buffer.pack('f', 0.0))
-        if self.protocol_version == 335: self.send_packet(0x40, Buffer.pack('f', var) + Buffer.pack_varint(var) + Buffer.pack('f', 0.0))
-        if self.protocol_version == 338 or self.protocol_version == 340: self.send_packet(0x41, Buffer.pack('f', var) + Buffer.pack_varint(var) + Buffer.pack('f', 0.0))
-    def send_exp(self, var):
-        if self.protocol_version == 47: self.send_packet(0x1F, Buffer.pack('f', var) + Buffer.pack_varint(0) + Buffer.pack_varint(0))
-        if self.protocol_version == 107 or self.protocol_version == 108 or self.protocol_version == 109 or self.protocol_version == 110 or self.protocol_version == 210 or self.protocol_version == 315 or self.protocol_version == 316: self.send_packet(0x3D, Buffer.pack('f', var) + Buffer.pack_varint(0) + Buffer.pack_varint(0))
-        if self.protocol_version == 335: self.send_packet(335, Buffer.pack('f', var) + Buffer.pack_varint(0) + Buffer.pack_varint(0))
-        if self.protocol_version == 338 or self.protocol_version == 340: self.send_packet(0x40, Buffer.pack('f', var) + Buffer.pack_varint(0) + Buffer.pack_varint(0))
+        self.send_packet('chat_message', Buffer.pack_chat(msg) + Buffer.pack('b', 0))
+    def get_mode(self, mode):
+        mm = ''
+        if mode == 0: mm = 'init'
+        if mode == 1: mm = 'status'
+        if mode == 2: mm = 'login'
+        if mode == 3: mm = 'play'
+        return mm
 class AuthServer(protocol.Factory):
     def __init__(self):
         self.s_port = 48000
