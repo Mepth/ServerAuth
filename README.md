@@ -7,7 +7,7 @@
 
 self.send_packet(IDпаекета, Дата пакета) ->
 
-self.send_packet(0x18, Buffer.pack_string('BungeeCord') + u'Hello')  #http://wiki.vg/Protocol#Plugin_Message
+self.send_packet('plugin_message', Buffer.pack_string('BungeeCord') + u'Hello')  #http://wiki.vg/Protocol#Plugin_Message
 
 Как отправить сообщение?
 
@@ -52,7 +52,7 @@ self.send_chat                    Method  example:   self.send_chat('Hello world
 
 self.send_title                   Method  example:   self.send_title('Line 1', 'Line 2')
 
-self.send_packet                  Method  example:   self.send_packet(0x10, Buffer.pack('dddff', 0, 0, 0, 0, 0)) # http://wiki.vg/Protocol#Vehicle_Move
+self.send_packet                  Method  example:   self.send_packet('vehicle_move', Buffer.pack('dddff', 0, 0, 0, 0, 0)) # http://wiki.vg/Protocol#Vehicle_Move
 
 self.kick                         Method  example:   self.kick('You kicked')
 
