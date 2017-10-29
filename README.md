@@ -24,7 +24,7 @@ self.send_chat('Hello world!')
 
 Как отправить Title? 
 
-self.send_title('Line 1', 'Line 2')
+self.send_title('Line 1', 'Line 2', 15, 100, 15)
 
 Как создать задачу, которая будет выполнятся каждую секунду?
 
