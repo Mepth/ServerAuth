@@ -174,6 +174,8 @@ class AuthProtocol(protocol.Protocol):
         if self.expBar == 21: self.expBar = 1
         if self.pps >= 50 and self.y <= 390 and not self.prog and self.gu >= 40:
             self.prog = True
+            self.send_packet('update_health', self.buff.pack('f', 20) + self.buff.pack_varint(20) + self.buff.pack('f', 0.0))
+            self.send_packet('set_experience', self.buff.pack('f', 1) + self.buff.pack_varint(0) + self.buff.pack_varint(0))
             self.send_chat('Success')
             sys.stdout.write('%s passed the test and was sent to the server: %s|[%s]%s\n' % (self.username, self.protocol_version, self.client_addr, self.protocol_mode))
             self.tasks.stop_all()
