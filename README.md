@@ -1,6 +1,14 @@
 # ServerAuth
 Сервер на Python на который можно зайти. Пустота и сообщения.
 
+# Установка
+
+sudo apt-get install build-essential libssl-dev libffi-dev python-dev python-pip python2.7
+
+pip install twisted cryptography pyOpenSSL service_identity
+
+python main.py
+
 # Вопросы
 
 Как отправить пакет?
