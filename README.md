@@ -7,7 +7,7 @@ sudo apt-get install build-essential libssl-dev libffi-dev python3-dev python3-p
 
 pip3 install twisted cryptography pyOpenSSL service_identity
 
-python main.py
+python main.py 25565
 
 # Вопросы
 
