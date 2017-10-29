@@ -154,7 +154,7 @@ class AuthProtocol(protocol.Protocol):
                         self.send_packet('player_position_and_look', self.buff.pack('dddff?', float(0), float(400), float(0), float(-90), float(0), True) + self.buff.pack_varint(0))
                     self.send_chunk()
                     self.send_chat('Ожидайте завершения проверки')
-                    self.send_title('Wait', 'вы проверяйтесь')
+                    self.send_title('Wait', 'вы проверяйтесь', 15, 100, 15)
                     self.tasks.add_loop(0.05, self.guard)
                     self.tasks.add_delay(15, self.time_kick)
             else: raise ProtocolError.mode_mismatch(ident, self.protocol_mode)
@@ -200,9 +200,11 @@ class AuthProtocol(protocol.Protocol):
         self.close()
     def time_kick(self):
         self.kick('CheckTimeOut')
-    def send_title(self, message, sub):
+    def send_title(self, message, sub, fadein, stay, fadeout):
         self.send_packet('title', self.buff.pack_varint(0) + self.buff.pack_chat(message))
         self.send_packet('title', self.buff.pack_varint(1) + self.buff.pack_chat(sub))
+        if self.protocol_version <= 210: self.send_packet('title', self.buff.pack_varint(2) + self.buff.pack('iii', fadein, stay, fadeout))
+        else: self.send_packet('title', self.buff.pack_varint(3) + self.buff.pack('iii', fadein, stay, fadeout))
     def send_chunk(self):
         if self.protocol_version == 47: self.send_packet('chunk_data', self.buff.pack('ii?H', 0, 0, True, 0) + self.buff.pack_varint(0))
         elif self.protocol_version == 109 or self.protocol_version == 108 or self.protocol_version == 107: self.send_packet('chunk_data', self.buff.pack('ii?', 0, 0, True) + self.buff.pack_varint(0) + self.buff.pack_varint(0))
