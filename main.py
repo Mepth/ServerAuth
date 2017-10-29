@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 from twisted.internet import protocol, reactor
 from twisted.internet.task import LoopingCall
-import struct, json, zlib, sys, packets
+import struct, json, zlib, sys, packets, random
 class BufferUnderrun(Exception): pass
 class Tasks(object):
     def __init__(self):
@@ -62,6 +62,12 @@ class Buffer(object):
     @classmethod
     def pack(cls, ty, *data): return struct.pack(">"+ty, *data)
     @classmethod
+    def pack_slot(cls, id=-1, count=1, damage=0, tag=None): return cls.pack('hbh', id, count, damage) + cls.pack_nbt(tag)
+    @classmethod
+    def pack_nbt(cls, tag=None):
+        if tag is None: return b"\x00"
+        return tag.to_bytes()
+    @classmethod
     def pack_string(cls, data):
         data = data.encode("utf-8")
         return cls.pack_varint(len(data)) + data
@@ -81,7 +87,7 @@ class AuthProtocol(protocol.Protocol):
     protocol_version = 0
     login_step = 0
     def __init__(self, factory, addr):
-        self.x, self.y, self.z, self.o, self.expBar, self.bar, self.pps, self.guards, self.prog, self.hic, self.nhlc, self.gu = 1, 400, 0, True, 2, 0.0, 0, 0, False, 0, 0, 0
+        self.x, self.y, self.z, self.o, self.expBar, self.bar, self.pps, self.guards, self.prog, self.hic, self.nhlc, self.gu, self.slot = 1, 400, 0, True, 2, 0.0, 0, 0, False, 0, 0, 0, 36
         self.joined = False
         self.factory = factory
         self.client_addr = addr.host
@@ -154,12 +160,15 @@ class AuthProtocol(protocol.Protocol):
             else: raise ProtocolError.mode_mismatch(ident, self.protocol_mode)
         except: pass
     def guard(self):
+        self.send_packet("set_slot", self.buff.pack('bh', 0, self.slot) + self.buff.pack_slot(random.randint(272, 372), 1, 0, None))
         self.send_packet('update_health', self.buff.pack('f', self.expBar) + self.buff.pack_varint(self.expBar) + self.buff.pack('f', 0.0))
         self.send_packet('set_experience', self.buff.pack('f', self.bar) + self.buff.pack_varint(0) + self.buff.pack_varint(0))
         self.send_packet('held_item_change', self.buff.pack('b', self.hic))
         self.bar += 0.01695
         self.expBar += 1
         self.hic += 1
+        self.slot += 1
+        if self.slot == 45: self.slot = 35
         if self.hic == 9: self.hic = 0
         if self.bar >= 1: self.bar = 0.1
         if self.expBar == 21: self.expBar = 1
@@ -167,8 +176,9 @@ class AuthProtocol(protocol.Protocol):
             self.prog = True
             self.send_chat('Success')
             sys.stdout.write('%s passed the test and was sent to the server: %s|[%s]%s\n' % (self.username, self.protocol_version, self.client_addr, self.protocol_mode))
+            self.tasks.stop_all()
     def send_packet(self, name, data):
-        key = ( self.protocol_version, self.get_mode(self.protocol_mode), "downstream", name)
+        key = (self.protocol_version, self.get_mode(self.protocol_mode), "downstream", name)
         try: ident = packets.packet_idents[key]
         except KeyError: raise ProtocolError("No ID known for packet: %s" % (key,))
         data = Buffer.pack_varint(ident) + data
@@ -208,7 +218,10 @@ class AuthProtocol(protocol.Protocol):
         return mm
 class AuthServer(protocol.Factory):
     def __init__(self):
-        self.s_port = 25565
+        if not len(sys.argv) == 2:
+            print('Port invalid')
+            sys.exit()
+        self.s_port = int(sys.argv[1])
         self.s_host = '0.0.0.0'
         self.online = 0
         self.debug = False
