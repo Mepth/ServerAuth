@@ -123,10 +123,10 @@ class AuthProtocol(protocol.Protocol):
                     self.protocol_mode = buff.unpack_varint()
                 else: raise ProtocolError.mode_mismatch(ident, self.protocol_mode)
             elif self.protocol_mode == 1:
-                if ident == 0: self.send_packet("status_response", Buffer.pack_string(json.dumps(self.factory.get_status(self.protocol_version))))
+                if ident == 0: self.send_packet("status_response", self.buff.pack_string(json.dumps(self.factory.get_status(self.protocol_version))))
                 elif ident == 1:
                     time = buff.unpack("Q")
-                    self.send_packet('status_pong', Buffer.pack("Q", time))
+                    self.send_packet('status_pong', self.buff.pack("Q", time))
                     sys.stdout.write(self.client_addr + ' pinged\n')
                     self.close()
                 else: raise ProtocolError.mode_mismatch(ident, self.protocol_mode)
@@ -139,7 +139,7 @@ class AuthProtocol(protocol.Protocol):
                     sys.stdout.write('%s joined on server with parms: %s|[%s]%s\n' % (self.username, self.protocol_version, self.client_addr, self.protocol_mode))
                     if self.protocol_version == 47:
                         self.send_packet('join_game', buff.pack('iBbBB', 0, 0, 0, 0, 0) + buff.pack_string('flat') + buff.pack('?', False))
-                        self.send_packet('player_position_and_look', Buffer.pack('dddffb', float(0), float(400), float(0), float(-90), float(0), 0b00000))
+                        self.send_packet('player_position_and_look', self.buff.pack('dddffb', float(0), float(400), float(0), float(-90), float(0), 0b00000))
                     elif self.protocol_version == 107:
                         self.send_packet('join_game', buff.pack('iBbBB', 0, 0, 0, 0, 0) + buff.pack_string('flat') + buff.pack('?', False))
                         self.send_packet('player_position_and_look', self.buff.pack('dddffb', float(0), float(400), float(0), float(-90), float(0), True) + self.buff.pack_varint(0))
@@ -154,9 +154,9 @@ class AuthProtocol(protocol.Protocol):
             else: raise ProtocolError.mode_mismatch(ident, self.protocol_mode)
         except: pass
     def guard(self):
-        self.send_packet('update_health', Buffer.pack('f', self.expBar) + Buffer.pack_varint(self.expBar) + Buffer.pack('f', 0.0))
-        self.send_packet('set_experience', Buffer.pack('f', self.bar) + Buffer.pack_varint(0) + Buffer.pack_varint(0))
-        self.send_packet('held_item_change', Buffer.pack('b', self.hic))
+        self.send_packet('update_health', self.buff.pack('f', self.expBar) + self.buff.pack_varint(self.expBar) + self.buff.pack('f', 0.0))
+        self.send_packet('set_experience', self.buff.pack('f', self.bar) + self.buff.pack_varint(0) + self.buff.pack_varint(0))
+        self.send_packet('held_item_change', self.buff.pack('b', self.hic))
         self.bar += 0.01695
         self.expBar += 1
         self.hic += 1
@@ -185,20 +185,20 @@ class AuthProtocol(protocol.Protocol):
         self.factory.online = self.factory.online - 1
         sys.stdout.write('leaved from server with parms: %s|[%s]%s\n' % (self.protocol_version, self.client_addr, self.protocol_mode))
     def kick(self, message):
-        if self.get_mode(self.protocol_mode) == 'login': self.send_packet('login_disconnect', Buffer.pack_string(json.dumps({"text": message.replace('&', u'\u00A7')})))
-        else: self.send_packet('disconnect', Buffer.pack_string(json.dumps({"text": message.replace('&', u'\u00A7')})))
+        if self.get_mode(self.protocol_mode) == 'login': self.send_packet('login_disconnect', self.buff.pack_chat(message.replace('&', u'\u00A7')))
+        else: self.send_packet('disconnect', self.buff.pack_chat(message.replace('&', u'\u00A7')))
         self.close()
     def time_kick(self):
         self.kick('CheckTimeOut')
     def send_title(self, message, sub):
-        self.send_packet('title', Buffer.pack_varint(0) + Buffer.pack_chat(message))
-        self.send_packet('title', Buffer.pack_varint(1) + Buffer.pack_chat(sub))
+        self.send_packet('title', self.buff.pack_varint(0) + self.buff.pack_chat(message))
+        self.send_packet('title', self.buff.pack_varint(1) + self.buff.pack_chat(sub))
     def send_chunk(self):
-        if self.protocol_version == 47: self.send_packet('chunk_data', Buffer.pack('ii?H', 0, 0, True, 0) + Buffer.pack_varint(0))
-        elif self.protocol_version == 109 or self.protocol_version == 108 or self.protocol_version == 107: self.send_packet('chunk_data', Buffer.pack('ii?', 0, 0, True) + Buffer.pack_varint(0) + Buffer.pack_varint(0))
-        else: self.send_packet('chunk_data', Buffer.pack('ii?H', 0, 0, True, 0) + Buffer.pack_varint(0))
+        if self.protocol_version == 47: self.send_packet('chunk_data', self.buff.pack('ii?H', 0, 0, True, 0) + self.buff.pack_varint(0))
+        elif self.protocol_version == 109 or self.protocol_version == 108 or self.protocol_version == 107: self.send_packet('chunk_data', self.buff.pack('ii?', 0, 0, True) + self.buff.pack_varint(0) + self.buff.pack_varint(0))
+        else: self.send_packet('chunk_data', self.buff.pack('ii?H', 0, 0, True, 0) + self.buff.pack_varint(0))
     def send_chat(self, msg):
-        self.send_packet('chat_message', Buffer.pack_chat(msg) + Buffer.pack('b', 0))
+        self.send_packet('chat_message', self.buff.pack_chat(msg) + self.buff.pack('b', 0))
     def get_mode(self, mode):
         mm = ''
         if mode == 0: mm = 'init'
