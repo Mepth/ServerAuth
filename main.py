@@ -32,9 +32,11 @@ class ProtocolError(Exception):
     @classmethod
     def step_mismatch(cls, ident, step): return cls("Unexpected packet; ID: {0}; Step: {1}".format(ident, step))
 class Buffer(object):
-    def __init__(self): self.buff1, self.buff2 = "", ""
+    def __init__(self):
+        self.buff1 = b""
+        self.buff2 = b""
     def length(self): return len(self.buff1)
-    def add(self, d): self.buff1 += d
+    def add(self, data): self.buff1 += data
     def save(self): self.buff2 = self.buff1
     def restore(self): self.buff1 = self.buff2
     def unpack_raw(self, l):
@@ -67,11 +69,11 @@ class Buffer(object):
     def pack_array(cls, data): return cls.pack("h", len(data)) + data
     @classmethod
     def pack_varint(cls, d):
-        o = ""
+        o = b""
         while True:
             b = d & 0x7F
             d >>= 7
-            o += cls.pack("B", b | (0x80 if d > 0 else 0))
+            o += struct.pack("B", b | (0x80 if d > 0 else 0))
             if d == 0: break
         return o
 class AuthProtocol(protocol.Protocol):
@@ -95,7 +97,7 @@ class AuthProtocol(protocol.Protocol):
                 packet_body = self.buff.unpack_raw(packet_length)
                 try: self.packet_received(packet_body)
                 except ProtocolError as e:
-                    print "Protocol Error: ", e
+                    print("Protocol Error: ", e)
                     self.kick("Protocol Error!\n\n%s" % (e))
                     break
                 self.buff.save()
@@ -206,7 +208,7 @@ class AuthProtocol(protocol.Protocol):
         return mm
 class AuthServer(protocol.Factory):
     def __init__(self):
-        self.s_port = 48000
+        self.s_port = 25565
         self.s_host = '0.0.0.0'
         self.online = 0
         self.debug = False
