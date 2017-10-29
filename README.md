@@ -1,3 +1,4 @@
+![Logo](http://i.imgur.com/mqn4TON.png)
 # ServerAuth
 Сервер на Python на который можно зайти. Пустота и сообщения.
 
