@@ -28,13 +28,13 @@ class Tasks(object):
             task.stop()
 class ProtocolError(Exception):
     @classmethod
-    def mode_mismatch(cls, ident, mode): return cls("Unexpected packet; ID: {0}; Mode: {1}".format(ident, mode))
+    def mode_mismatch(cls, ident, mode): return cls('Unexpected packet; ID: {0}; Mode: {1}'.format(ident, mode))
     @classmethod
-    def step_mismatch(cls, ident, step): return cls("Unexpected packet; ID: {0}; Step: {1}".format(ident, step))
+    def step_mismatch(cls, ident, step): return cls('Unexpected packet; ID: {0}; Step: {1}'.format(ident, step))
 class Buffer(object):
     def __init__(self):
-        self.buff1 = b""
-        self.buff2 = b""
+        self.buff1 = b''
+        self.buff2 = b''
     def length(self): return len(self.buff1)
     def add(self, data): self.buff1 += data
     def save(self): self.buff2 = self.buff1
@@ -44,42 +44,42 @@ class Buffer(object):
         d, self.buff1 = self.buff1[:l], self.buff1[l:]
         return d
     def unpack(self, ty):
-        s = struct.unpack(">"+ty, self.unpack_raw(struct.calcsize(ty)))
+        s = struct.unpack('>'+ty, self.unpack_raw(struct.calcsize(ty)))
         return s[0] if len(ty) == 1 else s
-    def unpack_string(self): return self.unpack_raw(self.unpack_varint()).decode("utf-8")
-    def unpack_array(self): return self.unpack_raw(self.unpack("h"))
+    def unpack_string(self): return self.unpack_raw(self.unpack_varint()).decode('utf-8')
+    def unpack_array(self): return self.unpack_raw(self.unpack('h'))
     def unpack_varint(self):
         d = 0
         for i in range(5):
-            b = self.unpack("B")
+            b = self.unpack('B')
             d |= (b & 0x7F) << 7*i
             if not b & 0x80: break
         return d
     @classmethod
     def pack_json(cls, obj): return cls.pack_string(json.dumps(obj))
     @classmethod
-    def pack_chat(cls, text): return cls.pack_json({"text": text})
+    def pack_chat(cls, text): return cls.pack_json({'text': text})
     @classmethod
-    def pack(cls, ty, *data): return struct.pack(">"+ty, *data)
+    def pack(cls, ty, *data): return struct.pack('>'+ty, *data)
     @classmethod
     def pack_slot(cls, id=-1, count=1, damage=0, tag=None): return cls.pack('hbh', id, count, damage) + cls.pack_nbt(tag)
     @classmethod
     def pack_nbt(cls, tag=None):
-        if tag is None: return b"\x00"
+        if tag is None: return b'\x00'
         return tag.to_bytes()
     @classmethod
     def pack_string(cls, data):
-        data = data.encode("utf-8")
+        data = data.encode('utf-8')
         return cls.pack_varint(len(data)) + data
     @classmethod
-    def pack_array(cls, data): return cls.pack("h", len(data)) + data
+    def pack_array(cls, data): return cls.pack('h', len(data)) + data
     @classmethod
     def pack_varint(cls, d):
-        o = b""
+        o = b''
         while True:
             b = d & 0x7F
             d >>= 7
-            o += struct.pack("B", b | (0x80 if d > 0 else 0))
+            o += struct.pack('B', b | (0x80 if d > 0 else 0))
             if d == 0: break
         return o
 class AuthProtocol(protocol.Protocol):
@@ -94,7 +94,7 @@ class AuthProtocol(protocol.Protocol):
         self.buff = Buffer()
         self.tasks = Tasks()
         self.cipher = lambda d: d
-        self.timeout = reactor.callLater(self.factory.player_timeout, self.kick, "long to log in!")
+        self.timeout = reactor.callLater(self.factory.player_timeout, self.kick, 'long to log in!')
     def dataReceived(self, data):
         self.buff.add(data)
         while True:
@@ -103,8 +103,8 @@ class AuthProtocol(protocol.Protocol):
                 packet_body = self.buff.unpack_raw(packet_length)
                 try: self.packet_received(packet_body)
                 except ProtocolError as e:
-                    print("Protocol Error: ", e)
-                    self.kick("Protocol Error!\n\n%s" % (e))
+                    print('Protocol Error: ', e)
+                    self.kick('Protocol Error!\n\n%s' % (e))
                     break
                 self.buff.save()
             except BufferUnderrun: break
@@ -115,9 +115,9 @@ class AuthProtocol(protocol.Protocol):
             ident = buff.unpack_varint()
             if self.factory.debug: print(str(ident))
             if self.protocol_mode == 3:
-                key = (self.protocol_version, self.get_mode(self.protocol_mode), "upstream", ident)
+                key = (self.protocol_version, self.get_mode(self.protocol_mode), 'upstream', ident)
                 try: name = packets.packet_names[key]
-                except KeyError: raise ProtocolError("No name known for packet: %s" % (key,))
+                except KeyError: raise ProtocolError('No name known for packet: %s' % (key,))
                 if name == 'player_position': self.x, self.y, self.z, self.o = buff.unpack('ddd?')
                 if name == 'held_item_change': self.nhlc = buff.unpack('h'); self.gu += 1
             self.pps += 1
@@ -125,14 +125,14 @@ class AuthProtocol(protocol.Protocol):
                 if ident == 0:
                     self.protocol_version = buff.unpack_varint()
                     self.server_addr = buff.unpack_string()
-                    self.server_port = buff.unpack("H")
+                    self.server_port = buff.unpack('H')
                     self.protocol_mode = buff.unpack_varint()
                 else: raise ProtocolError.mode_mismatch(ident, self.protocol_mode)
             elif self.protocol_mode == 1:
-                if ident == 0: self.send_packet("status_response", self.buff.pack_string(json.dumps(self.factory.get_status(self.protocol_version))))
+                if ident == 0: self.send_packet('status_response', self.buff.pack_string(json.dumps(self.factory.get_status(self.protocol_version))))
                 elif ident == 1:
-                    time = buff.unpack("Q")
-                    self.send_packet('status_pong', self.buff.pack("Q", time))
+                    time = buff.unpack('Q')
+                    self.send_packet('status_pong', self.buff.pack('Q', time))
                     sys.stdout.write(self.client_addr + ' pinged\n')
                     self.close()
                 else: raise ProtocolError.mode_mismatch(ident, self.protocol_mode)
@@ -160,7 +160,7 @@ class AuthProtocol(protocol.Protocol):
             else: raise ProtocolError.mode_mismatch(ident, self.protocol_mode)
         except: pass
     def guard(self):
-        self.send_packet("set_slot", self.buff.pack('bh', 0, self.slot) + self.buff.pack_slot(random.randint(272, 372), 1, 0, None))
+        self.send_packet('set_slot', self.buff.pack('bh', 0, self.slot) + self.buff.pack_slot(random.randint(272, 372), 1, 0, None))
         self.send_packet('update_health', self.buff.pack('f', self.expBar) + self.buff.pack_varint(self.expBar) + self.buff.pack('f', 0.0))
         self.send_packet('set_experience', self.buff.pack('f', self.bar) + self.buff.pack_varint(0) + self.buff.pack_varint(0))
         self.send_packet('held_item_change', self.buff.pack('b', self.hic))
@@ -180,9 +180,9 @@ class AuthProtocol(protocol.Protocol):
             sys.stdout.write('%s passed the test and was sent to the server: %s|[%s]%s\n' % (self.username, self.protocol_version, self.client_addr, self.protocol_mode))
             self.tasks.stop_all()
     def send_packet(self, name, data):
-        key = (self.protocol_version, self.get_mode(self.protocol_mode), "downstream", name)
+        key = (self.protocol_version, self.get_mode(self.protocol_mode), 'downstream', name)
         try: ident = packets.packet_idents[key]
-        except KeyError: raise ProtocolError("No ID known for packet: %s" % (key,))
+        except KeyError: raise ProtocolError('No ID known for packet: %s' % (key,))
         data = Buffer.pack_varint(ident) + data
         data = Buffer.pack_varint(len(data)) + data
         if len(data) >= 256: data = Buffer.pack_varint(len(data)) + zlib.compress(data)
@@ -229,18 +229,18 @@ class AuthServer(protocol.Factory):
         self.s_host = '0.0.0.0'
         self.online = 0
         self.debug = False
-        self.motd = "&dAuthServer by vk.com/ru.yooxa\n&71.8-1.12.2"
+        self.motd = '&dAuthServer by vk.com/ru.yooxa\n&71.8-1.12.2'
         self.player_timeout = 30
-        self.status = {"description": self.motd.replace('&', u'\u00A7'),"players": {"max": 0, "online": self.online},"version": {"name": "", "protocol": 0}}
+        self.status = {'description': self.motd.replace('&', u'\u00A7'),'players': {'max': 0, 'online': self.online},'version': {'name': '', 'protocol': 0}}
     def run(self):
         reactor.listenTCP(self.s_port, self, interface=self.s_host)
-        print("server binded on " + self.s_host + ":" + str(self.s_port))
+        print('server binded on ' + self.s_host + ':' + str(self.s_port))
         reactor.run()
     def buildProtocol(self, addr): return AuthProtocol(self, addr)
     def get_status(self, protocol_version):
         d = dict(self.status)
-        d["version"]["protocol"] = protocol_version
+        d['version']['protocol'] = protocol_version
         return d
-if __name__ == "__main__":
+if __name__ == '__main__':
     server = AuthServer()
     server.run()
