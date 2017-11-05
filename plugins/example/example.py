@@ -16,13 +16,17 @@ def command(player, command, args):
         reactor.stop()
     if command == 'tp':
         if len(args) == 3:
-            x, y, z = [float(arg) for arg in args]
+            x, y, z = args[0], args[1], args[2]
             player.set_position(x, y, z)
-            player.send_chat('Teleported to X:%s Y:%s Z:%s' % (x, y, z))
+            player.send_chat('Teleported to X:%s Y:%s Z:%s' % (str(x), str(y), str(z)))
         else:
             player.send_chat('Need 3 args: x,y,z')
     if command == 'help':
-        player.send_chat('/tppos [x, y, z]\n/stop')
+        player.send_chat('/tp [x, y, z]\n/stop\n/title line1 line2 2')
+    if command == 'title':
+        if len(args) == 3:
+            player.send_title(args[0], args[1], 25, int(args[2]) * 25, 25)
+        else: player.send_chat('3 args need')
     if command == 'brodcast':
         if len(args) == 0:
             player.send_chat('Enter your message')
