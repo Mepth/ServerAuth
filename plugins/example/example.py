@@ -21,8 +21,14 @@ def command(player, command, args):
             player.send_chat('Teleported to X:%s Y:%s Z:%s' % (str(x), str(y), str(z)))
         else:
             player.send_chat('Need 3 args: x,y,z')
+    if command == 'give':
+        if len(args) == 3:
+            id, count, slot = int(args[0]), int(args[1]), int(args[2])
+            player.send_set_slot(id, count, slot)
+        else:
+            player.send_chat('3 args need')
     if command == 'help':
-        player.send_chat('/tp [x, y, z]\n/stop\n/title line1 line2 2')
+        player.send_chat('/tp [x, y, z]\n/stop\n/title line1 line2 2\n/give id count slot')
     if command == 'title':
         if len(args) == 3:
             player.send_title(args[0], args[1], 25, int(args[2]) * 25, 25)
