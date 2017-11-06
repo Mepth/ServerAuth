@@ -33,7 +33,7 @@ def command(player, command, args):
         if len(args) == 3:
             player.send_title(args[0], args[1], 25, int(args[2]) * 25, 25)
         else: player.send_chat('3 args need')
-    if command == 'brodcast' or command == 'bcc':
+    if command == 'brodcast' or command == 'bc':
         if len(args) == 0:
             player.send_chat('Enter your message')
         else:
