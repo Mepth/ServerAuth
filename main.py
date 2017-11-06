@@ -223,6 +223,8 @@ class AuthProtocol(protocol.Protocol):
             player.send_packet('chat_message', self.buff.pack_chat('<' + self.username + '> ' + msg) + self.buff.pack('b', 0))
     def send_player_list_header_footer(self, up, down):
         self.send_packet('player_list_header_footer', self.buff.pack_chat(up) + self.buff.pack_chat(down))
+    def send_set_slot(self, id, count, slot, window=0):
+        self.send_packet('set_slot', self.buff.pack('bh', window, slot) + self.buff.pack_slot(id, count, 0, None))
     def send_keep_alive(self):
         if self.protocol_version <= 338: payload = self.buff.pack_varint(0)
         else: payload = self.buff.pack('Q', 0)
