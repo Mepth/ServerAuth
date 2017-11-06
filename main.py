@@ -60,8 +60,9 @@ class Buffer(object):
     def unpack_json(self):
         obj = json.loads(self.unpack_string())
         return obj
-    def unpack_chat(self):
-        return self.unpack_json()
+    def unpack_chat(self): return self.unpack_json()
+    @classmethod
+    def pack_uuid(cls, uuid): return uuid.to_bytes()
     @classmethod
     def pack_json(cls, obj): return cls.pack_string(json.dumps(obj))
     @classmethod
@@ -209,6 +210,8 @@ class AuthProtocol(protocol.Protocol):
         if self.protocol_version == 47: self.send_packet('chunk_data', self.buff.pack('ii?H', 0, 0, True, 0) + self.buff.pack_varint(0))
         elif self.protocol_version == 109 or self.protocol_version == 108 or self.protocol_version == 107: self.send_packet('chunk_data', self.buff.pack('ii?', 0, 0, True) + self.buff.pack_varint(0) + self.buff.pack_varint(0))
         else: self.send_packet('chunk_data', self.buff.pack('ii?H', 0, 0, True, 0) + self.buff.pack_varint(0))
+    def send_spawn_player(self, entity_id, player_uuid, x, y, z, yaw, pitch):
+        self.send_packet("spawn_player", self.buff.pack_varint(entity_id) + self.buff.pack_uuid(player_uuid) + self.buff_type.pack('dddbbBdb', x, y, z, yaw, pitch, 0, 7, 20))
     def send_held_item_change(self, slot):
         self.send_packet('held_item_change', self.buff.pack('b', slot))
     def send_update_health(self, heal, food):
