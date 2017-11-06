@@ -125,6 +125,7 @@ class AuthProtocol(protocol.Protocol):
                 key = (self.protocol_version, self.get_mode(self.protocol_mode), 'upstream', ident)
                 try: name = packets.packet_names[key]
                 except KeyError: raise ProtocolError('No name known for packet: %s' % (key,))
+                self.plugin_event('packet_recived', ident, name)
                 if self.factory.debug: print(str(name))
                 if name == 'player_position':
                     self.x, self.y, self.z, self.o = buff.unpack('ddd?')
@@ -157,7 +158,8 @@ class AuthProtocol(protocol.Protocol):
                     self.send_packet('login_success', buff.pack_string('19e34a23-53d5-4bc2-a649-c9575ef08bb6') + buff.pack_string(self.username))
                     self.protocol_mode = 3
                     self.factory.players.add(self)
-                    self.send_chat_all('§e%s joined on server!' % (self.username))
+                    for player in self.factory.players:
+                        player.send_packet('chat_message', self.buff.pack_chat('§e%s joined on server!' % (self.username)) + self.buff.pack('b', 0))
                     sys.stdout.write('%s joined on server with parms: %s|[%s]%s\n' % (self.username, self.protocol_version, self.client_addr, self.protocol_mode))
                     if self.protocol_version == 47:
                         self.send_packet('join_game', buff.pack('iBbBB', 0, 0, 0, 0, 0) + buff.pack_string('flat') + buff.pack('?', False))
@@ -191,7 +193,8 @@ class AuthProtocol(protocol.Protocol):
         if self.get_mode(self.protocol_mode) in ('login', 'play'):
             self.factory.players.discard(self)
             self.plugin_event('player_leave')
-            self.send_chat_all('§c%s leaved from server!' % (self.username))
+            for player in self.factory.players:
+                player.send_packet('chat_message', self.buff.pack_chat('§e%s leaved from server!' % (self.username)) + self.buff.pack('b', 0))
         sys.stdout.write('leaved from server with parms: %s|[%s]%s\n' % (self.protocol_version, self.client_addr, self.protocol_mode))
     def kick(self, message):
         if self.get_mode(self.protocol_mode) == 'login': self.send_packet('login_disconnect', self.buff.pack_chat(message.replace('&', u'\u00A7')))
@@ -217,7 +220,7 @@ class AuthProtocol(protocol.Protocol):
     def send_chat_all(self, msg):
         sys.stdout.write('<%s>: %s\n' % (self.username, msg))
         for player in self.factory.players:
-            player.send_packet('chat_message', self.buff.pack_chat(msg) + self.buff.pack('b', 0))
+            player.send_packet('chat_message', self.buff.pack_chat('<' + self.username + '> ' + msg) + self.buff.pack('b', 0))
     def send_player_list_header_footer(self, up, down):
         self.send_packet('player_list_header_footer', self.buff.pack_chat(up) + self.buff.pack_chat(down))
     def send_keep_alive(self):
@@ -225,7 +228,7 @@ class AuthProtocol(protocol.Protocol):
         else: payload = self.buff.pack('Q', 0)
         self.send_packet('keep_alive', payload)
     def set_position(self, x, y, z):
-        self.send_packet('player_position_and_look', self.buff.pack('dddff?', x, y, z, -90, 0, True))
+        self.send_packet('player_position_and_look', self.buff.pack('dddff?', float(x), float(y), float(z), float(-90), float(0), True))
     def kick_all(self, msg):
         for player in self.factory.players:
             player.kick(msg)
