@@ -65,6 +65,27 @@ self.send_packet                  Method  example:   self.send_packet('vehicle_m
 
 self.kick                         Method  example:   self.kick('You kicked')
 
+# Типы для struct
+
+Boolean: "?"
+
+Byte: "b"
+
+Unsigned_byte: "B"
+
+Short: "h"
+
+Unsigned_short: "H"
+
+Int: "i"
+
+Long: "q"
+
+Unsigned_long: "Q"
+
+Float: "f"
+
+Double: "d"
 
 # AuthServer
 self.factory.s_port               Int     example:   print(str(self.s_port)) 
