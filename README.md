@@ -3,13 +3,11 @@
 Сервер на Python на который можно зайти. Пустота и сообщения.
 
 # Установка
-
+```
 sudo apt-get install build-essential libssl-dev libffi-dev python3-dev python3-pip python3
-
 pip3 install twisted cryptography pyOpenSSL service_identity
-
 python main.py 25565
-
+```
 # Вопросы
 
 Как отправить пакет?
