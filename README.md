@@ -49,3 +49,6 @@ self.tasks.add_delay(Секунды, self.метод)
  - Unsigned_long: Q
  - Float: f
  - Double: d
+
+# TODO:
+ - Chunks
