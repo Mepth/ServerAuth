@@ -102,7 +102,6 @@ class AuthProtocol(protocol.Protocol):
         self.buff = Buffer()
         self.tasks = Tasks()
         self.cipher = lambda d: d
-        self.timeout = reactor.callLater(self.factory.player_timeout, self.kick, 'long to log in!')
     def dataReceived(self, data):
         self.buff.add(data)
         while True:
@@ -263,7 +262,6 @@ class AuthServer(protocol.Factory):
         self.plugin_system = PluginSystem(folder=abspath('plugins'))
         self.plugin_system.register_events()
         self.motd = '&dAuthServer by vk.com/ru.yooxa\n&71.8-1.12.2'
-        self.player_timeout = 30
         self.status = {'description': self.motd.replace('&', u'\u00A7'),'players': {'max': 0, 'online': len(self.players)},'version': {'name': '', 'protocol': 0}}
     def run(self):
         reactor.listenTCP(self.s_port, self, interface=self.s_host)
