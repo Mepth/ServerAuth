@@ -4,7 +4,7 @@ from twisted.internet import protocol, reactor
 from twisted.internet.task import LoopingCall
 from os.path import abspath
 from plugin_core import PluginSystem
-import struct, json, zlib, sys, packets, random
+import struct, json, zlib, sys, packets, configparser, uuid
 class BufferUnderrun(Exception): pass
 class Tasks(object):
     def __init__(self):
@@ -96,6 +96,7 @@ class AuthProtocol(protocol.Protocol):
     login_step = 0
     def __init__(self, factory, addr):
         self.x, self.y, self.z, self.on_ground, self.slot = 1, 400, 0, True, 0
+        self.username = 'NONE'
         self.joined = False
         self.factory = factory
         self.client_addr = addr.host
@@ -122,7 +123,7 @@ class AuthProtocol(protocol.Protocol):
             ident = buff.unpack_varint()
             if self.factory.debug: print(str(ident))
             if self.protocol_mode == 3:
-                key = (self.protocol_version, self.get_mode(self.protocol_mode), 'upstream', ident)
+                key = (self.protocol_version, self.get_mode(), 'upstream', ident)
                 try: name = packets.packet_names[key]
                 except KeyError: raise ProtocolError('No name known for packet: %s' % (key,))
                 self.plugin_event('packet_recived', ident, name)
@@ -135,7 +136,7 @@ class AuthProtocol(protocol.Protocol):
                     self.chat_message = buff.unpack_string()
                     self.plugin_event('chat_message', self.chat_message)
                     if self.chat_message[0] == '/': self.handle_command(self.chat_message[1:])
-                    else: self.send_chat_all(self.chat_message)
+                    else: self.send_chat_all('<%s> %s' % (self.username, self.chat_message))
             if self.protocol_mode == 0:
                 if ident == 0:
                     self.protocol_version = buff.unpack_varint()
@@ -158,25 +159,24 @@ class AuthProtocol(protocol.Protocol):
                     self.send_packet('login_success', buff.pack_string('19e34a23-53d5-4bc2-a649-c9575ef08bb6') + buff.pack_string(self.username))
                     self.protocol_mode = 3
                     self.factory.players.add(self)
-                    for player in self.factory.players:
-                        player.send_packet('chat_message', self.buff.pack_chat('§e%s joined on server!' % (self.username)) + self.buff.pack('b', 0))
-                    sys.stdout.write('%s joined on server with parms: %s|[%s]%s\n' % (self.username, self.protocol_version, self.client_addr, self.protocol_mode))
+                    self.send_chat_all('§e%s joined on server!' % (self.username))
+                    sys.stdout.write('%s joined on server with parms:   %s|[%s]%s\n' % (self.username, self.protocol_version, self.client_addr, self.get_mode()))
                     if self.protocol_version == 47:
                         self.send_packet('join_game', buff.pack('iBbBB', 0, 0, 0, 0, 0) + buff.pack_string('flat') + buff.pack('?', False))
-                        self.send_packet('player_position_and_look', self.buff.pack('dddffb', float(0), float(400), float(0), float(-90), float(0), 0b00000))
+                        self.send_packet('player_position_and_look', buff.pack('dddffb', float(0), float(400), float(0), float(-90), float(0), 0b00000))
                     elif self.protocol_version == 107:
                         self.send_packet('join_game', buff.pack('iBbBB', 0, 0, 0, 0, 0) + buff.pack_string('flat') + buff.pack('?', False))
-                        self.send_packet('player_position_and_look', self.buff.pack('dddffb', float(0), float(400), float(0), float(-90), float(0), True) + self.buff.pack_varint(0))
+                        self.send_packet('player_position_and_look', buff.pack('dddffb', float(0), float(400), float(0), float(-90), float(0), True) + buff.pack_varint(0))
                     else:
-                        self.send_packet('join_game', self.buff.pack('iBiBB', 0, 0, 0, 0, 0) + self.buff.pack_string('flat') + self.buff.pack('?', False))
-                        self.send_packet('player_position_and_look', self.buff.pack('dddff?', float(0), float(400), float(0), float(-90), float(0), True) + self.buff.pack_varint(0))
+                        self.send_packet('join_game', buff.pack('iBiBB', 0, 0, 0, 0, 0) + buff.pack_string('flat') + buff.pack('?', False))
+                        self.send_packet('player_position_and_look', buff.pack('dddff?', float(0), float(400), float(0), float(-90), float(0), True) + buff.pack_varint(0))
                     self.send_chunk()
                     self.plugin_event('player_join')
                     self.tasks.add_loop(5, self.send_keep_alive)
             else: raise ProtocolError.mode_mismatch(ident, self.protocol_mode)
         except: pass
     def send_packet(self, name, data):
-        key = (self.protocol_version, self.get_mode(self.protocol_mode), 'downstream', name)
+        key = (self.protocol_version, self.get_mode(), 'downstream', name)
         try: ident = packets.packet_idents[key]
         except KeyError: raise ProtocolError('No ID known for packet: %s' % (key,))
         data = Buffer.pack_varint(ident) + data
@@ -190,14 +190,13 @@ class AuthProtocol(protocol.Protocol):
         self.transport.loseConnection()
     def connectionLost(self, reason=None):
         self.tasks.stop_all()
-        if self.get_mode(self.protocol_mode) in ('login', 'play'):
+        if self.get_mode() in ('login', 'play'):
             self.factory.players.discard(self)
             self.plugin_event('player_leave')
-            for player in self.factory.players:
-                player.send_packet('chat_message', self.buff.pack_chat('§e%s leaved from server!' % (self.username)) + self.buff.pack('b', 0))
-        sys.stdout.write('leaved from server with parms: %s|[%s]%s\n' % (self.protocol_version, self.client_addr, self.protocol_mode))
+            self.send_chat_all('§e%s leaved from server!' % (self.username))
+            sys.stdout.write('%s leaved from server with parms: %s|[%s]%s\n' % (self.username, self.protocol_version, self.client_addr, self.get_mode()))
     def kick(self, message):
-        if self.get_mode(self.protocol_mode) == 'login': self.send_packet('login_disconnect', self.buff.pack_chat(message.replace('&', u'\u00A7')))
+        if self.get_mode() == 'login': self.send_packet('login_disconnect', self.buff.pack_chat(message.replace('&', u'\u00A7')))
         else: self.send_packet('disconnect', self.buff.pack_chat(message.replace('&', u'\u00A7')))
         self.close()
     def send_title(self, message, sub, fadein, stay, fadeout):
@@ -220,9 +219,8 @@ class AuthProtocol(protocol.Protocol):
     def send_chat(self, msg):
         self.send_packet('chat_message', self.buff.pack_chat(msg) + self.buff.pack('b', 0))
     def send_chat_all(self, msg):
-        sys.stdout.write('<%s>: %s\n' % (self.username, msg))
         for player in self.factory.players:
-            player.send_packet('chat_message', self.buff.pack_chat('<' + self.username + '> ' + msg) + self.buff.pack('b', 0))
+            player.send_packet('chat_message', self.buff.pack_chat(msg) + self.buff.pack('b', 0))
     def send_player_list_header_footer(self, up, down):
         self.send_packet('player_list_header_footer', self.buff.pack_chat(up) + self.buff.pack_chat(down))
     def send_set_slot(self, id, count, slot, window=0):
@@ -237,32 +235,32 @@ class AuthProtocol(protocol.Protocol):
         for player in self.factory.players:
             player.kick(msg)
     def handle_command(self, command_string):
-        print('Player ' + self.username + ' issued server command: ' + command_string + '')
+        print('Player ' + self.username + ' issued server command: /' + command_string + '')
         command_list = command_string.split(' ')
         command, arguments = command_list[0], command_string.split(' ')[1:]
         self.plugin_event('player_command', command, arguments)
-    def get_mode(self, mode):
-        mm = ''
-        if mode == 0: mm = 'init'
-        if mode == 1: mm = 'status'
-        if mode == 2: mm = 'login'
-        if mode == 3: mm = 'play'
+    def get_mode(self):
+        if self.protocol_mode == 0: mm = 'init'
+        elif self.protocol_mode == 1: mm = 'status'
+        elif self.protocol_mode == 2: mm = 'login'
+        elif self.protocol_mode == 3: mm = 'play'
+        else: mm = 'unknow'
         return mm
     def plugin_event(self, event_name, *args, **kwargs):
         self.factory.plugin_system.call_event(event_name, self, *args, **kwargs)
 class AuthServer(protocol.Factory):
     def __init__(self):
-        if not len(sys.argv) == 2:
-            print('Port invalid')
-            sys.exit()
-        self.s_port = int(sys.argv[1])
-        self.s_host = '0.0.0.0'
-        self.debug = False
-        self.players = set()
+        self.config = configparser.RawConfigParser()
+        self.config.read('server.properties')
         self.plugin_system = PluginSystem(folder=abspath('plugins'))
         self.plugin_system.register_events()
-        self.motd = '&dAuthServer by vk.com/ru.yooxa\n&71.8-1.12.2'
-        self.status = {'description': self.motd.replace('&', u'\u00A7'),'players': {'max': 0, 'online': len(self.players)},'version': {'name': '', 'protocol': 0}}
+        self.players = set()
+        self.s_port = int(self.config.get('server', 'server-port'))
+        self.s_host = self.config.get('server', 'server-ip')
+        self.max_players = int(self.config.get('server', 'max-players'))
+        self.debug = self.str2bool(self.config.get('server', 'debug'))
+        self.motd = self.config.get('server', 'motd')
+        self.status = {'description': self.motd.replace('&', u'\u00A7'),'players': {'max': self.max_players, 'online': len(self.players)},'version': {'name': '', 'protocol': 0}}
     def run(self):
         reactor.listenTCP(self.s_port, self, interface=self.s_host)
         print('server binded on ' + self.s_host + ':' + str(self.s_port))
@@ -272,6 +270,9 @@ class AuthServer(protocol.Factory):
         d = dict(self.status)
         d['version']['protocol'] = protocol_version
         return d
+    def str2bool(self, bool):
+        if bool.lower() == 'true': return True
+        else: return False
 if __name__ == '__main__':
     server = AuthServer()
     server.run()
