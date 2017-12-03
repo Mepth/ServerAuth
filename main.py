@@ -4,7 +4,7 @@ from twisted.internet import protocol, reactor
 from twisted.internet.task import LoopingCall
 from os.path import abspath
 from plugin_core import PluginSystem
-import struct, json, zlib, sys, packets, configparser, uuid
+import struct, json, zlib, sys, packets, configparser
 class BufferUnderrun(Exception): pass
 class Tasks(object):
     def __init__(self):
@@ -149,7 +149,8 @@ class AuthProtocol(protocol.Protocol):
                 elif ident == 1:
                     time = buff.unpack('Q')
                     self.send_packet('status_pong', self.buff.pack('Q', time))
-                    sys.stdout.write(self.client_addr + ' pinged\n')
+                    if self.factory.print_ping:
+                        sys.stdout.write(self.client_addr + ' pinged\n')
                     self.close()
                 else: raise ProtocolError.mode_mismatch(ident, self.protocol_mode)
             elif self.protocol_mode == 2:
@@ -244,7 +245,7 @@ class AuthProtocol(protocol.Protocol):
         elif self.protocol_mode == 1: mm = 'status'
         elif self.protocol_mode == 2: mm = 'login'
         elif self.protocol_mode == 3: mm = 'play'
-        else: mm = 'unknow'
+        else: mm = 'unknown'
         return mm
     def plugin_event(self, event_name, *args, **kwargs):
         self.factory.plugin_system.call_event(event_name, self, *args, **kwargs)
@@ -257,6 +258,7 @@ class AuthServer(protocol.Factory):
         self.players = set()
         self.s_port = int(self.config.get('server', 'server-port'))
         self.s_host = self.config.get('server', 'server-ip')
+        self.print_ping = self.str2bool(self.config.get('server', 'print-ping'))
         self.max_players = int(self.config.get('server', 'max-players'))
         self.debug = self.str2bool(self.config.get('server', 'debug'))
         self.motd = self.config.get('server', 'motd')
@@ -274,5 +276,4 @@ class AuthServer(protocol.Factory):
         if bool.lower() == 'true': return True
         else: return False
 if __name__ == '__main__':
-    server = AuthServer()
-    server.run()
+    AuthServer().run()
