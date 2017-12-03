@@ -4,7 +4,7 @@ from twisted.internet import protocol, reactor
 from twisted.internet.task import LoopingCall
 from os.path import abspath
 from plugin_core import PluginSystem
-import struct, json, zlib, sys, packets, configparser
+import struct, json, zlib, sys, packets, configparser, datetime
 class BufferUnderrun(Exception): pass
 class Tasks(object):
     def __init__(self):
@@ -111,7 +111,7 @@ class AuthProtocol(protocol.Protocol):
                 packet_body = self.buff.unpack_raw(packet_length)
                 try: self.packet_received(packet_body)
                 except ProtocolError as e:
-                    print('Protocol Error: ', e)
+                    self.factory.logging('Protocol Error: ', e)
                     self.kick('Protocol Error!\n\n%s' % (e))
                     break
                 self.buff.save()
@@ -150,7 +150,7 @@ class AuthProtocol(protocol.Protocol):
                     time = buff.unpack('Q')
                     self.send_packet('status_pong', self.buff.pack('Q', time))
                     if self.factory.print_ping:
-                        sys.stdout.write(self.client_addr + ' pinged\n')
+                        self.factory.logging(self.client_addr + ' pinged\n')
                     self.close()
                 else: raise ProtocolError.mode_mismatch(ident, self.protocol_mode)
             elif self.protocol_mode == 2:
@@ -161,7 +161,7 @@ class AuthProtocol(protocol.Protocol):
                     self.protocol_mode = 3
                     self.factory.players.add(self)
                     self.send_chat_all('§e%s joined on server!' % (self.username))
-                    sys.stdout.write('%s joined on server with parms:   %s|[%s]%s\n' % (self.username, self.protocol_version, self.client_addr, self.get_mode()))
+                    self.factory.logging('%s joined on server with parms:   %s|[%s]%s\n' % (self.username, self.protocol_version, self.client_addr, self.get_mode()))
                     if self.protocol_version == 47:
                         self.send_packet('join_game', buff.pack('iBbBB', 0, 0, 0, 0, 0) + buff.pack_string('flat') + buff.pack('?', False))
                         self.send_packet('player_position_and_look', buff.pack('dddffb', float(0), float(400), float(0), float(-90), float(0), 0b00000))
@@ -195,7 +195,7 @@ class AuthProtocol(protocol.Protocol):
             self.factory.players.discard(self)
             self.plugin_event('player_leave')
             self.send_chat_all('§e%s leaved from server!' % (self.username))
-            sys.stdout.write('%s leaved from server with parms: %s|[%s]%s\n' % (self.username, self.protocol_version, self.client_addr, self.get_mode()))
+            self.factory.logging('%s leaved from server with parms: %s|[%s]%s\n' % (self.username, self.protocol_version, self.client_addr, self.get_mode()))
     def kick(self, message):
         if self.get_mode() == 'login': self.send_packet('login_disconnect', self.buff.pack_chat(message.replace('&', u'\u00A7')))
         else: self.send_packet('disconnect', self.buff.pack_chat(message.replace('&', u'\u00A7')))
@@ -236,7 +236,7 @@ class AuthProtocol(protocol.Protocol):
         for player in self.factory.players:
             player.kick(msg)
     def handle_command(self, command_string):
-        print('Player ' + self.username + ' issued server command: /' + command_string + '')
+        self.factory.logging('Player ' + self.username + ' issued server command: /' + command_string + '')
         command_list = command_string.split(' ')
         command, arguments = command_list[0], command_string.split(' ')[1:]
         self.plugin_event('player_command', command, arguments)
@@ -265,9 +265,14 @@ class AuthServer(protocol.Factory):
         self.status = {'description': self.motd.replace('&', u'\u00A7'),'players': {'max': self.max_players, 'online': len(self.players)},'version': {'name': '', 'protocol': 0}}
     def run(self):
         reactor.listenTCP(self.s_port, self, interface=self.s_host)
-        print('server binded on ' + self.s_host + ':' + str(self.s_port))
+        print('Server started on %s:%s' % (self.s_host, str(self.s_port)))
         reactor.run()
+        self.logging('Done!')
     def buildProtocol(self, addr): return AuthProtocol(self, addr)
+    def logging(self, message):
+        message = '%s | %s' % (datetime.datetime.now().strftime('[%H:%M:%S]'), message)
+        sys.stdout.write(message)
+        with open('logger.log', 'a') as the_file: the_file.write(message)
     def get_status(self, protocol_version):
         d = dict(self.status)
         d['version']['protocol'] = protocol_version
