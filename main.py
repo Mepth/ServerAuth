@@ -150,7 +150,7 @@ class AuthProtocol(protocol.Protocol):
                     time = buff.unpack('Q')
                     self.send_packet('status_pong', self.buff.pack('Q', time))
                     if self.factory.print_ping:
-                        self.factory.logging(self.client_addr + ' pinged\n')
+                        self.factory.logging(self.client_addr + ' pinged')
                     self.close()
                 else: raise ProtocolError.mode_mismatch(ident, self.protocol_mode)
             elif self.protocol_mode == 2:
@@ -161,7 +161,7 @@ class AuthProtocol(protocol.Protocol):
                     self.protocol_mode = 3
                     self.factory.players.add(self)
                     self.send_chat_all('§e%s joined on server!' % (self.username))
-                    self.factory.logging('%s joined on server with parms:   %s|[%s]%s\n' % (self.username, self.protocol_version, self.client_addr, self.get_mode()))
+                    self.factory.logging('%s joined on server with parms:   %s|[%s]%s' % (self.username, self.protocol_version, self.client_addr, self.get_mode()))
                     if self.protocol_version == 47:
                         self.send_packet('join_game', buff.pack('iBbBB', 0, 0, 0, 0, 0) + buff.pack_string('flat') + buff.pack('?', False))
                         self.send_packet('player_position_and_look', buff.pack('dddffb', float(0), float(400), float(0), float(-90), float(0), 0b00000))
@@ -195,7 +195,7 @@ class AuthProtocol(protocol.Protocol):
             self.factory.players.discard(self)
             self.plugin_event('player_leave')
             self.send_chat_all('§e%s leaved from server!' % (self.username))
-            self.factory.logging('%s leaved from server with parms: %s|[%s]%s\n' % (self.username, self.protocol_version, self.client_addr, self.get_mode()))
+            self.factory.logging('%s leaved from server with parms: %s|[%s]%s' % (self.username, self.protocol_version, self.client_addr, self.get_mode()))
     def kick(self, message):
         if self.get_mode() == 'login': self.send_packet('login_disconnect', self.buff.pack_chat(message.replace('&', u'\u00A7')))
         else: self.send_packet('disconnect', self.buff.pack_chat(message.replace('&', u'\u00A7')))
@@ -265,13 +265,13 @@ class AuthServer(protocol.Factory):
         self.status = {'description': self.motd.replace('&', u'\u00A7'),'players': {'max': self.max_players, 'online': len(self.players)},'version': {'name': '', 'protocol': 0}}
     def run(self):
         reactor.listenTCP(self.s_port, self, interface=self.s_host)
-        print('Server started on %s:%s' % (self.s_host, str(self.s_port)))
+        self.logging('Server started on %s:%s' % (self.s_host, str(self.s_port)))
         reactor.run()
         self.logging('Done!')
     def buildProtocol(self, addr): return AuthProtocol(self, addr)
     def logging(self, message):
         message = '%s | %s' % (datetime.datetime.now().strftime('[%H:%M:%S]'), message)
-        sys.stdout.write(message)
+        print(message)
         with open('logger.log', 'a') as the_file: the_file.write(message)
     def get_status(self, protocol_version):
         d = dict(self.status)
