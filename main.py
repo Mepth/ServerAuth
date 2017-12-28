@@ -270,7 +270,7 @@ class AuthServer(protocol.Factory):
         self.logging('Done!')
     def buildProtocol(self, addr): return AuthProtocol(self, addr)
     def logging(self, message):
-        message = '%s | %s' % (datetime.datetime.now().strftime('[%H:%M:%S]'), message)
+        message = '%s | %s\n' % (datetime.datetime.now().strftime('[%H:%M:%S]'), message)
         print(message)
         with open('logger.log', 'a') as the_file: the_file.write(message)
     def get_status(self, protocol_version):
