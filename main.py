@@ -278,7 +278,7 @@ class AuthServer(protocol.Factory):
         d['version']['protocol'] = protocol_version
         return d
     def str2bool(self, bool):
-        if bool.lower() == 'true': return True
-        else: return False
+        if bool[0].lower() == 't': return True
+        return False
 if __name__ == '__main__':
     AuthServer().run()
