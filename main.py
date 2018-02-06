@@ -187,7 +187,6 @@ class AuthProtocol(protocol.Protocol):
         data = self.cipher(data)
         self.transport.write(data)
     def close(self):
-        if self.timeout.active(): self.timeout.cancel()
         self.transport.loseConnection()
     def connectionLost(self, reason=None):
         self.tasks.stop_all()
@@ -249,6 +248,12 @@ class AuthProtocol(protocol.Protocol):
         return mm
     def plugin_event(self, event_name, *args, **kwargs):
         self.factory.plugin_system.call_event(event_name, self, *args, **kwargs)
+    def stop(self):
+        for player in self.factory.players:
+            player.kick('Server stopped')
+        reactor.removeAll()
+        reactor.iterate()
+        reactor.stop()
 class AuthServer(protocol.Factory):
     def __init__(self):
         self.config = configparser.RawConfigParser()
