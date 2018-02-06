@@ -7,13 +7,9 @@ def join(player):
 @plugin.event('player_command')
 def command(player, command, args):
     if command == 'stop':
-        player.kick_all('Server stopped')
         plugin.log(player.username + ' has stopped server')
         time.sleep( 1 )
-        from twisted.internet import reactor
-        reactor.removeAll()
-        reactor.iterate()
-        reactor.stop()
+        player.stop()
     if command == 'tp':
         if len(args) == 3:
             x, y, z = args[0], args[1], args[2]
